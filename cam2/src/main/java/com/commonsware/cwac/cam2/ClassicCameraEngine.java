@@ -40,7 +40,8 @@ import de.greenrobot.event.EventBus;
 public class ClassicCameraEngine extends CameraEngine
     implements MediaRecorder.OnInfoListener,
     Camera.PreviewCallback, Camera.OnZoomChangeListener {
-  private final Context ctxt;
+    private static final String TAG = ClassicCameraEngine.class.getName();
+    private final Context ctxt;
   private List<Descriptor> descriptors=null;
   private MediaRecorder recorder;
   private VideoTransaction xact;
@@ -316,7 +317,7 @@ public class ClassicCameraEngine extends CameraEngine
         camera.startPreview();
       }
     }
-
+      Log.i(TAG, "VideoRecorderActivity stopVideoRecording. abandon? " + abandon);
     if (!abandon) {
       getBus().post(new VideoTakenEvent(xact));
     }
@@ -580,6 +581,15 @@ public class ClassicCameraEngine extends CameraEngine
             xact, recorder);
         }
       }
+        int previewWidth = getPreviewSize().getWidth();
+        int previewHeight = getPreviewSize().getHeight();
+        int minimalHeight = Math.min(previewWidth, previewHeight);
+        double downSampleRatio = 1.0 * 480 / minimalHeight;
+        int videoWidth = (int) (getPreviewSize().getWidth() * downSampleRatio);
+        int videoHeight = (int) (getPreviewSize().getHeight() * downSampleRatio);
+        Log.i(ClassicCameraEngine.class.getName(), "STRETCH_DBG setting recorder from video size width"
+                + videoWidth + " height " + videoHeight);
+        recorder.setVideoSize(videoWidth, videoHeight);
     }
   }
 

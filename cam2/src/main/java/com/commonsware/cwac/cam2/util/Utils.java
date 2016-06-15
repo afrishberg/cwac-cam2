@@ -21,8 +21,11 @@ import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.os.Build;
 import android.util.DisplayMetrics;
+import android.util.Log;
+
 import com.commonsware.cwac.cam2.CameraActivity;
 import com.commonsware.cwac.cam2.CameraDescriptor;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -33,6 +36,25 @@ import java.util.List;
  * offered to developers in the spirit of togetherness.
  */
 public class Utils {
+
+    public static double WIDE_SCREEN_RATIO = 16.0/9;
+    public static double NARROW_SCREEN_RATIO = 4.0/3;
+
+    public static int WIDE_SCREEN = 0;
+    public static int NARROW_SCREEN = 1;
+
+
+    static int getTypicalRatio(int width, int height) {
+        if (height > width) {
+            return getTypicalRatio(height, width);
+        }
+        double ratio = 1.0 * width / height;
+        double wideScreenDiff = Math.abs(WIDE_SCREEN_RATIO - ratio);
+        double narrowScreenDiff = Math.abs(NARROW_SCREEN_RATIO - ratio);
+        return wideScreenDiff < narrowScreenDiff ? WIDE_SCREEN : NARROW_SCREEN;
+    }
+
+
   /**
    * Tests the app and the device to confirm that the code
    * in this library should work. This is called automatically
@@ -91,25 +113,30 @@ public class Utils {
     return(!canMove || dm.widthPixels < dm.heightPixels);
   }
 
-  public static Size getLargestPictureSize(CameraDescriptor descriptor) {
-    Size result=null;
+    public static Size getLargestPictureSize(CameraDescriptor descriptor, Size displaySize) {
+        int displayRatio = getTypicalRatio(displaySize.getWidth(), displaySize.getHeight());
+        Log.i(Utils.class.getName(), "getLargestPictureSize displaySize " + displaySize +
+                " displayRatio " + displayRatio + " exact ratio " + (1.0 * displaySize.getWidth() / displaySize.getHeight()));
+        List<Size> correctRatio = new ArrayList<>();
 
-    for (Size size : descriptor.getPictureSizes()) {
-      if (result == null) {
-        result=size;
-      }
-      else {
-        int resultArea=result.getWidth() * result.getHeight();
-        int newArea=size.getWidth() * size.getHeight();
+        for (Size size : descriptor.getPictureSizes()) {
+            Log.i(Utils.class.getName(), "getLargestPictureSize checking optional " + size + "with ratio " +
+                    (1.0 * size.getWidth() / size.getHeight()));
+            if (getTypicalRatio(size.getWidth(), size.getHeight()) == displayRatio) {
+                correctRatio.add(size);
 
-        if (newArea > resultArea) {
-          result=size;
+            }
         }
-      }
+        if (correctRatio.size() > 0) {
+            Size maxSize = Collections.max(correctRatio, new CompareSizesByArea());
+            Log.i(Utils.class.getName(), "getLargestPictureSize found a matching ratio resolution returning the largest one: " + maxSize);
+            return maxSize;
+        } else {
+//        Log.e(TAG, "Couldn't find any suitable preview size");
+            Log.i(Utils.class.getName(), "getLargestPictureSize didn't find a matching ratio resolution returning the largest one ");
+            return Collections.max(descriptor.getPictureSizes(), new CompareSizesByArea());
+        }
     }
-
-    return(result);
-  }
 
   public static Size getSmallestPictureSize(CameraDescriptor descriptor) {
     Size result=null;
@@ -139,30 +166,45 @@ public class Utils {
    * ratio matches with the specified value.
    *
    * @param choices     The list of sizes that the camera supports for the intended output class
-   * @param width       The minimum desired width
-   * @param height      The minimum desired height
    * @param aspectRatio The aspect ratio
    * @return The optimal {@code Size}, or an arbitrary one if none were big enough
    */
-  public static Size chooseOptimalSize(List<Size> choices, int width, int height, Size aspectRatio) {
-    // Collect the supported resolutions that are at least as big as the preview Surface
-    List<Size> bigEnough = new ArrayList<Size>();
-    int w = aspectRatio.getWidth();
-    int h = aspectRatio.getHeight();
-    for (Size option : choices) {
-      if (option.getHeight() == option.getWidth() * h / w &&
-          option.getWidth() >= width && option.getHeight() >= height) {
-        bigEnough.add(option);
-      }
-    }
+  public static Size chooseOptimalSize(List<Size> choices, Size aspectRatio) {
+      // Collect the supported resolutions that are at least as big as the preview Surface
+      double exactAspectRatio = 1.0 * aspectRatio.getWidth() / aspectRatio.getHeight();
+      Log.i(Utils.class.getName(), "chooseOptimalSize aspectRatio: " + aspectRatio + " exact ratio is " +
+              exactAspectRatio);
+      int aspectRatioScreenType = getTypicalRatio(aspectRatio.getWidth(), aspectRatio.getHeight());
+      List<Size> similarRatio = new ArrayList<>();
+      List<Size> exactRatio = new ArrayList<>();
+      for (Size option : choices) {
+          Log.i(Utils.class.getName(), "chooseOptimalSize checking optional size: " + option + " ratio is " +
+                  (1.0 * option.getWidth() / option.getHeight()));
+          if (Math.abs(1.0 * option.getWidth() / option.getHeight() - exactAspectRatio ) < 1e-2) {
+              exactRatio.add(option);
+          }
+          else if (getTypicalRatio(option.getWidth(), option.getHeight()) == aspectRatioScreenType) {
 
-    // Pick the smallest of those, assuming we found any
-    if (bigEnough.size() > 0) {
-      return Collections.min(bigEnough, new CompareSizesByArea());
-    } else {
+              similarRatio.add(option);
+
+          }
+      }
+
+      // Pick the smallest of those, assuming we found any
+      if(exactRatio.size() > 0) {
+          Size maxSize = Collections.max(exactRatio, new CompareSizesByArea());
+          Log.i(Utils.class.getName(), "chooseOptimalSize found an exact ratio resolution returning the smallest one " + maxSize);
+          return maxSize;
+      }
+      if (similarRatio.size() > 0) {
+          Size maxSize = Collections.max(similarRatio, new CompareSizesByArea());
+          Log.i(Utils.class.getName(), "chooseOptimalSize found a similar ratio resolution returning the smallest one " + maxSize);
+          return maxSize;
+      } else {
 //      Log.e(TAG, "Couldn't find any suitable preview size");
-      return Collections.max(choices, new CompareSizesByArea());
-    }
+          Log.i(Utils.class.getName(), "chooseOptimalSize didn't find a big enough resolution returning the largest one ");
+          return Collections.max(choices, new CompareSizesByArea());
+      }
   }
 
   static class CompareSizesByArea implements Comparator<Size> {

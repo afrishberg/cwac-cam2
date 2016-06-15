@@ -16,16 +16,15 @@ package com.commonsware.cwac.cam2.plugin;
 
 import android.annotation.TargetApi;
 import android.hardware.Camera;
-import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CaptureRequest;
 import android.media.CamcorderProfile;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
 import android.os.Build;
+import android.util.Log;
+
 import com.commonsware.cwac.cam2.CameraConfigurator;
 import com.commonsware.cwac.cam2.CameraPlugin;
 import com.commonsware.cwac.cam2.CameraSession;
-import com.commonsware.cwac.cam2.CameraTwoConfigurator;
 import com.commonsware.cwac.cam2.ClassicCameraConfigurator;
 import com.commonsware.cwac.cam2.SimpleCameraTwoConfigurator;
 import com.commonsware.cwac.cam2.SimpleClassicCameraConfigurator;
@@ -38,6 +37,7 @@ import com.commonsware.cwac.cam2.util.Size;
  * needs to be in the plugin chain for the CameraSession.
  */
 public class SizeAndFormatPlugin implements CameraPlugin {
+    static final String TAG = SizeAndFormatPlugin.class.getName();
   final private Size pictureSize;
   final private Size previewSize;
   private final int pictureFormat;
@@ -119,18 +119,27 @@ public class SizeAndFormatPlugin implements CameraPlugin {
       int highProfile=getHigh();
 
       boolean canGoHigh=CamcorderProfile.hasProfile(cameraId,
-        highProfile);
+              highProfile);
       boolean canGoLow=CamcorderProfile.hasProfile(cameraId,
         CamcorderProfile.QUALITY_LOW);
+        boolean canGo480 = CamcorderProfile.hasProfile(cameraId,
+                CamcorderProfile.QUALITY_480P);
 
-      if (canGoHigh && (xact.getQuality()==1 || !canGoLow)) {
-        recorder.setProfile(CamcorderProfile.get(cameraId,
-          highProfile));
-      }
-      else if (canGoLow) {
-        recorder.setProfile(CamcorderProfile.get(cameraId,
-          CamcorderProfile.QUALITY_LOW));
-      }
+        recorder.setVideoEncodingBitRate(1200 * 1024);
+        if (canGoHigh && (xact.getQuality()==1 || !canGoLow)) {
+            recorder.setProfile(CamcorderProfile.get(cameraId,
+                    CamcorderProfile.QUALITY_HIGH));
+        }
+        else if (canGo480) {
+            Log.i(TAG, "Going 480");
+            recorder.setProfile(CamcorderProfile.get(cameraId,
+                    CamcorderProfile.QUALITY_480P));
+        }
+        else if (canGoLow) {
+            Log.i(TAG, "Going low");
+            recorder.setProfile(CamcorderProfile.get(cameraId,
+                    CamcorderProfile.QUALITY_LOW));
+        }
       else {
         throw new IllegalStateException(
           "cannot find valid CamcorderProfile");

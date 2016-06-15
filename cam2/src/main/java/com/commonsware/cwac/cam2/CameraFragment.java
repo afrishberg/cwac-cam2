@@ -19,26 +19,39 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.app.ActionBar;
+import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.graphics.Bitmap;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.SystemClock;
 import android.util.Log;
+import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
+import android.view.Surface;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.view.animation.OvershootInterpolator;
 import android.widget.ImageView;
 import android.widget.SeekBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
 import com.github.clans.fab.FloatingActionButton;
 import com.github.clans.fab.FloatingActionMenu;
+
 import java.io.File;
 import java.util.LinkedList;
+
 import de.greenrobot.event.EventBus;
 
 /**
@@ -56,7 +69,7 @@ public class CameraFragment extends Fragment {
   private static final String ARG_DURATION_LIMIT="durationLimit";
   private static final String ARG_ZOOM_STYLE="zoomStyle";
   private static final String ARG_FACING_EXACT_MATCH="facingExactMatch";
-  private static final int PINCH_ZOOM_DELTA=20;
+  private static final int PINCH_ZOOM_DELTA=10;
   private CameraController ctlr;
   private ViewGroup previewStack;
   private FloatingActionButton fabPicture;
@@ -67,8 +80,14 @@ public class CameraFragment extends Fragment {
   private ScaleGestureDetector scaleDetector;
   private boolean inSmoothPinchZoom=false;
   private SeekBar zoomSlider;
+    private TextView timer;
+    CountDownTimer t;
+    public Bitmap screenShot = null;
+    public int orientation = -1;
+    static String TAG = CameraFragment.class.getName();
 
-  public static CameraFragment newPictureInstance(Uri output,
+
+    public static CameraFragment newPictureInstance(Uri output,
                                                   boolean updateMediaStore,
                                                   int quality,
                                                   ZoomStyle zoomStyle,
@@ -144,7 +163,10 @@ public class CameraFragment extends Fragment {
     super.onHiddenChanged(isHidden);
 
     if (!isHidden) {
+        VideoRecorderActivity.timeText = String.format("%d:%02d:%02d", 0, 0, 0);
+        timer.setText(VideoRecorderActivity.timeText);
       ActionBar ab=getActivity().getActionBar();
+        screenShot = null;
 
       if (ab!=null) {
         ab.setBackgroundDrawable(getActivity()
@@ -220,10 +242,19 @@ public class CameraFragment extends Fragment {
 
     progress=v.findViewById(R.id.cwac_cam2_progress);
     fabPicture=(FloatingActionButton)v.findViewById(R.id.cwac_cam2_picture);
+      timer = (TextView) v.findViewById(R.id.cwac_cam2_timer);
 
-    if (isVideo()) {
+
+      if (isVideo()) {
+          if (timer != null) {
+              timer.setVisibility(View.VISIBLE);
+          }
       fabPicture.setImageResource(R.drawable.cwac_cam2_ic_videocam);
-    }
+    } else {
+          if (timer != null) {
+              timer.setVisibility(View.GONE);
+          }
+      }
 
     fabPicture.setOnClickListener(new View.OnClickListener() {
       @Override
@@ -249,7 +280,7 @@ public class CameraFragment extends Fragment {
       }
     });
 
-    changeMenuIconAnimation((FloatingActionMenu)v.findViewById(R.id.cwac_cam2_settings));
+//    changeMenuIconAnimation((FloatingActionMenu)v.findViewById(R.id.cwac_cam2_settings));
 
     onHiddenChanged(false); // hack, since this does not get
                             // called on initial display
@@ -333,7 +364,11 @@ public class CameraFragment extends Fragment {
             new View.OnTouchListener() {
               @Override
               public boolean onTouch(View v, MotionEvent event) {
+                  if (event.getAction() == MotionEvent.ACTION_UP) {
+                      inSmoothPinchZoom = false;
+                  }
                 return (scaleDetector.onTouchEvent(event));
+
               }
             });
         }
@@ -356,20 +391,34 @@ public class CameraFragment extends Fragment {
   @SuppressWarnings("unused")
   public void onEventMainThread(CameraEngine.VideoTakenEvent event) {
     isVideoRecording=false;
-
-    if (event.exception==null) {
+      Log.i("VideoRecorderActivity", "onEventMainThread VideoTakenEvent exception " +
+              event.exception + " isScanned? " + event.isScanned());
+    if (event.exception==null
+            && !event.isScanned()) {
+        Log.i("VideoRecorderActivity" , "before update media store");
       if (getArguments().getBoolean(ARG_UPDATE_MEDIA_STORE, false)) {
+          getActivity().findViewById(R.id.cwac_cam2_preview_stack).setVisibility(View.GONE);
+          getActivity().findViewById(R.id.cwac_cam2_progress).setVisibility(View.VISIBLE);
+          Log.i("VideoRecorderActivity" , "update media store");
         final Context app=getActivity().getApplicationContext();
         Uri output=getArguments().getParcelable(ARG_OUTPUT);
         final String path=output.getPath();
+          final CameraEngine.VideoTakenEvent fevent = event;
+          fevent.setScanned(true);
 
         new Thread() {
           @Override
           public void run() {
             SystemClock.sleep(2000);
             MediaScannerConnection.scanFile(app,
-              new String[]{path}, new String[]{"video/mp4"},
-              null);
+                    new String[]{path}, new String[]{"video/mp4"},
+                    new MediaScannerConnection.OnScanCompletedListener() {
+                        @Override
+                        public void onScanCompleted(String path, Uri uri) {
+                            Log.i("VideoRecorderActivity" , "after media scan, firing same event with scanned");
+                            getController().getEngine().getBus().post(fevent);
+                        }
+                    });
           }
         }.start();
       }
@@ -378,11 +427,14 @@ public class CameraFragment extends Fragment {
       setVideoFABToNormal();
     }
     else if (getActivity().isFinishing()) {
-      shutdown();
+        Log.i("VideoRecorderActivity" , "isFinishing");
+
+        shutdown();
     }
     else {
+        Log.i("VideoRecorderActivity" , "postError");
       ctlr.postError(ErrorConstants.ERROR_VIDEO_TAKEN, event.exception);
-      getActivity().finish();
+//      getActivity().finish();
     }
   }
 
@@ -417,11 +469,46 @@ public class CameraFragment extends Fragment {
   }
 
   private void recordVideo() {
+      Log.i(TAG, "recordVideo");
     if (isVideoRecording) {
+        getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+        for (int i = 0; i < previewStack.getChildCount(); ++i) {
+            View v = previewStack.getChildAt(i);
+            if (v instanceof CameraView && v.getVisibility() == View.VISIBLE) {
+                Display display = ((WindowManager)
+                        getActivity().getSystemService(Activity.WINDOW_SERVICE)).getDefaultDisplay();
+                Log.i(TAG, "setting bitmap, width: " + v.getWidth() + " height: " +
+                        v.getHeight() + " bitmap is null? " + (screenShot == null) +
+                " orientation is " + getResources().getConfiguration().orientation +
+                " rotation is " + display.getRotation());
+                screenShot = ((CameraView) v).getBitmap();
+//                if (display.getRotation() == Surface.ROTATION_270) {
+//                    Matrix matrix = new Matrix();
+//                    matrix.postRotate(180);
+//                    screenShot = Bitmap.createBitmap(screenShot, 0, 0,
+//                            screenShot.getWidth(), screenShot.getHeight(), matrix, true);
+//                }
+            }
+        }
       stopVideoRecording(false);
     }
     else {
       try {
+          orientation = getResources().getConfiguration().orientation;
+          Display display = ((WindowManager)
+                  getActivity().getSystemService(Activity.WINDOW_SERVICE)).getDefaultDisplay();
+          switch (orientation) {
+              case Configuration.ORIENTATION_PORTRAIT:
+                  getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                  break;
+              case Configuration.ORIENTATION_LANDSCAPE:
+                  if (display.getRotation() == Surface.ROTATION_270) {
+                      getActivity().setRequestedOrientation( ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+                  } else {
+                    getActivity().setRequestedOrientation( ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                  }
+                  break;
+          }
         VideoTransaction.Builder b=
           new VideoTransaction.Builder();
         Uri output=getArguments().getParcelable(ARG_OUTPUT);
@@ -433,6 +520,30 @@ public class CameraFragment extends Fragment {
             getArguments().getInt(ARG_DURATION_LIMIT, 0));
 
         ctlr.recordVideo(b.build());
+          timer.setVisibility(View.VISIBLE);
+
+          t = new CountDownTimer(Long.MAX_VALUE, 1000) {
+              int cnt = -1;
+              @Override
+              public void onTick(long millisUntilFinished) {
+                  cnt++;
+                  String time = Integer.toString(cnt);
+
+                  long seconds = cnt;
+                  int minutes = (int) (seconds / 60);
+                  int hours = minutes / 60;
+                  minutes = minutes % 60;
+                  seconds = seconds % 60;
+                  VideoRecorderActivity.timeText = String.format("%d:%02d:%02d", hours, minutes,seconds);
+                  timer.setText(VideoRecorderActivity.timeText);
+                  Log.i(TAG, "VideoRecorderActivity time passed: " + VideoRecorderActivity.timeText);
+              }
+
+              @Override
+              public void onFinish() {
+
+              }
+          }.start();
         isVideoRecording=true;
         fabPicture.setImageResource(
           R.drawable.cwac_cam2_ic_stop);
@@ -443,6 +554,7 @@ public class CameraFragment extends Fragment {
         fabSwitch.setEnabled(false);
       }
       catch (Exception e) {
+          getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
         Log.e(getClass().getSimpleName(),
           "Exception recording video", e);
         // TODO: um, do something here
@@ -463,8 +575,13 @@ public class CameraFragment extends Fragment {
     catch (Exception e) {
       ctlr.postError(ErrorConstants.ERROR_STOPPING_VIDEO, e);
       Log.e(getClass().getSimpleName(), "Exception stopping recording of video", e);
+        Toast.makeText(getActivity(), getString(R.string.video_take_error), Toast.LENGTH_SHORT).show();
+        getActivity().finish();
     }
     finally {
+        if (t != null) {
+            t.cancel();
+        }
       isVideoRecording=false;
     }
   }
@@ -549,10 +666,14 @@ public class CameraFragment extends Fragment {
 
   private ScaleGestureDetector.OnScaleGestureListener scaleListener=
     new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+
+
+
       @Override
-      public void onScaleEnd(ScaleGestureDetector detector) {
+      public boolean onScale(ScaleGestureDetector detector) {
         float scale=detector.getScaleFactor();
         int delta;
+        Log.i(TAG, "onScale inSmoothPinchZoom " + inSmoothPinchZoom  + " scale is " + scale);
 
         if (scale>1.0f) {
           delta=PINCH_ZOOM_DELTA;
@@ -561,14 +682,15 @@ public class CameraFragment extends Fragment {
           delta=-1*PINCH_ZOOM_DELTA;
         }
         else {
-          return;
+          return false;
         }
-
-        if (!inSmoothPinchZoom) {
-          if (ctlr.changeZoom(delta)) {
-            inSmoothPinchZoom=true;
-          }
+          if (!inSmoothPinchZoom) {
+              if (ctlr.changeZoom(delta)) {
+                inSmoothPinchZoom=true;
+              }
+              return true;
         }
+          return false;
       }
     };
 

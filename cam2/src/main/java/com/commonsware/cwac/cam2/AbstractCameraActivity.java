@@ -17,6 +17,7 @@ package com.commonsware.cwac.cam2;
 import android.annotation.TargetApi;
 import android.app.ActionBar;
 import android.app.Activity;
+import android.app.Fragment;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
@@ -24,6 +25,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.ResultReceiver;
 import android.provider.MediaStore;
 import android.util.Log;
@@ -31,18 +33,22 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+
 import com.commonsware.cwac.cam2.util.Utils;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import de.greenrobot.event.EventBus;
 
 /**
  * Base class for activities that integrate with CameraFragment
  * for taking pictures or recording video.
  */
-abstract public class AbstractCameraActivity extends Activity {
+abstract public class AbstractCameraActivity extends Activity
+        implements ConfirmationFragment.Contract {
   /**
    * List<FlashMode> indicating the desired flash modes,
    * or null for always taking the default. These are
@@ -130,7 +136,26 @@ abstract public class AbstractCameraActivity extends Activity {
    */
   public static final String EXTRA_FOCUS_MODE="cwac_cam2_focus_mode";
 
-  /**
+    /**
+     * Extra name for boolean indicating if we should skip the
+     * default logic to rotate the image based on the EXIF orientation
+     * tag. Defaults to false (meaning: do the rotation if needed).
+     */
+    public static final String EXTRA_SKIP_ORIENTATION_NORMALIZATION=
+            "cwac_cam2_skip_orientation_normalization";
+
+    /**
+     * Extra name for how much heap space we should try to use
+     * to load the picture for the confirmation screen. Should
+     * be a `float` greater than 0.0f and less than 1.0f.
+     * Defaults to not being used.
+     */
+    public static final String EXTRA_CONFIRMATION_QUALITY=
+            "cwac_cam2_confirmation_quality";
+    private static final String TAG = AbstractCameraActivity.class.getName();
+
+
+    /**
    * @return true if the activity wants FEATURE_ACTION_BAR_OVERLAY,
    * false otherwise
    */
@@ -170,6 +195,10 @@ abstract public class AbstractCameraActivity extends Activity {
   protected static final String TAG_CAMERA=CameraFragment.class.getCanonicalName();
   private static final int REQUEST_PERMS=13401;
   protected CameraFragment cameraFrag;
+    protected static final String TAG_CONFIRM=ConfirmationFragment.class.getCanonicalName();
+    protected ConfirmationFragment confirmFrag;
+    protected static Fragment currentFragment;
+    protected boolean needsThumbnail=false;
 
   /**
    * Standard lifecycle method, serving as the main entry
@@ -325,6 +354,7 @@ abstract public class AbstractCameraActivity extends Activity {
   }
 
   protected void init() {
+      Log.i(TAG, "init()");
     cameraFrag=(CameraFragment)getFragmentManager().findFragmentByTag(TAG_CAMERA);
 
     boolean fragNeedsToBeAdded=false;
@@ -377,9 +407,59 @@ abstract public class AbstractCameraActivity extends Activity {
         .add(android.R.id.content, cameraFrag, TAG_CAMERA)
         .commit();
     }
+
+      Uri output=getOutputUri();
+
+      needsThumbnail=(output==null);
+
+      initConfirmationFragment();
+      Log.i(TAG, "init() setting current fragment currentFragment "+ currentFragment+
+              " cameraFrag "+ cameraFrag+ " confirmFrag "+ confirmFrag);
+      if (currentFragment == null) {
+          setCurrentFragment(cameraFrag, confirmFrag);
+      } else if (currentFragment == confirmFrag) {
+          setCurrentFragment(confirmFrag, cameraFrag);
+      } else {
+          setCurrentFragment(cameraFrag, confirmFrag);
+      }
+
   }
 
-  boolean canSwitchSources() {
+    void setCurrentFragment(Fragment currentFragment, Fragment hideFragment){
+        AbstractCameraActivity.currentFragment = currentFragment;
+        Log.i(TAG, "setting currentFragment to: " + VideoRecorderActivity.currentFragment +
+                " cameraFrag " + cameraFrag + " confirmFrag " + confirmFrag);
+        getFragmentManager()
+                .beginTransaction()
+                .hide(hideFragment)
+                .show(currentFragment)
+                .commit();
+    }
+
+    private void initConfirmationFragment() {
+        confirmFrag=(ConfirmationFragment)getFragmentManager().findFragmentByTag(TAG_CONFIRM);
+
+
+        if (confirmFrag==null) {
+            confirmFrag=
+                    ConfirmationFragment
+                            .newInstance(normalizeOrientation());
+            getFragmentManager()
+                    .beginTransaction()
+                    .add(android.R.id.content, confirmFrag, TAG_CONFIRM)
+                    .commit();
+        }
+
+    }
+
+    protected boolean normalizeOrientation() {
+        boolean result=!getIntent()
+                .getBooleanExtra(EXTRA_SKIP_ORIENTATION_NORMALIZATION, false);
+
+        return(result);
+    }
+
+    boolean canSwitchSources() {
     return(!getIntent().getBooleanExtra(EXTRA_FACING_EXACT_MATCH, false));
   }
 
@@ -407,6 +487,17 @@ abstract public class AbstractCameraActivity extends Activity {
 
     return(result.toArray(new String[result.size()]));
   }
+
+    public void restartCameraFragment() {
+        getFragmentManager().beginTransaction().remove(cameraFrag).commit();
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                getFragmentManager().beginTransaction().add(android.R.id.content, cameraFrag, TAG_CAMERA)
+                        .commit();
+            }
+        }, 100);
+    }
 
   public enum Quality {
     LOW(0), HIGH(1);
@@ -676,5 +767,25 @@ abstract public class AbstractCameraActivity extends Activity {
 
       return((T)this);
     }
+
+      /**
+       * Call to set the quality factor for the confirmation screen.
+       * Value should be greater than 0.0f and below 1.0f, and
+       * represents the fraction of the app's heap size that we
+       * should be willing to use for loading the confirmation
+       * image. Defaults to not being used.
+       *
+       * @param quality something in (0.0f, 1.0f] range
+       * @return the builder, for further configuration
+       */
+      public IntentBuilder confirmationQuality(float quality) {
+          if (quality<=0.0f || quality>1.0f) {
+              throw new IllegalArgumentException("Quality outside (0.0f, 1.0f] range!");
+          }
+
+          result.putExtra(EXTRA_CONFIRMATION_QUALITY, quality);
+
+          return(this);
+      }
   }
 }

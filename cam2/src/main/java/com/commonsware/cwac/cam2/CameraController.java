@@ -14,13 +14,18 @@
 
 package com.commonsware.cwac.cam2;
 
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
+import android.graphics.Point;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ResultReceiver;
+import android.view.Display;
 import android.view.View;
+import android.view.WindowManager;
+
 import com.commonsware.cwac.cam2.plugin.FlashModePlugin;
 import com.commonsware.cwac.cam2.plugin.FocusModePlugin;
 import com.commonsware.cwac.cam2.plugin.OrientationPlugin;
@@ -298,15 +303,19 @@ public class CameraController implements CameraView.StateCallback {
       Size pictureSize;
 
       if (quality>0) {
-        pictureSize=Utils.getLargestPictureSize(camera);
+          WindowManager wm = (WindowManager) cv.getContext().getSystemService(Context.WINDOW_SERVICE);
+          Display display = wm.getDefaultDisplay();
+          Point screenSize = new Point();
+          display.getSize(screenSize);
+          Size displaySize = new Size(screenSize.x, screenSize.y);
+        pictureSize=Utils.getLargestPictureSize(camera, displaySize);
       }
       else {
         pictureSize=Utils.getSmallestPictureSize(camera);
       }
 
       if (camera != null && cv.getWidth() > 0 && cv.getHeight() > 0) {
-        previewSize=Utils.chooseOptimalSize(camera.getPreviewSizes(),
-            cv.getWidth(), cv.getHeight(), pictureSize);
+        previewSize=Utils.chooseOptimalSize(camera.getPreviewSizes(), pictureSize);
       }
 
       SurfaceTexture texture=cv.getSurfaceTexture();

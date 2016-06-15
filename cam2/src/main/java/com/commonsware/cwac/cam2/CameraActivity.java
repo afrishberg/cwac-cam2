@@ -17,8 +17,8 @@ package com.commonsware.cwac.cam2;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.provider.MediaStore;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +29,7 @@ import java.util.List;
  * ACTION_IMAGE_CAPTURE.
  */
 public class CameraActivity extends AbstractCameraActivity
-    implements ConfirmationFragment.Contract {
+     {
 
   /**
    * Extra name for indicating whether a confirmation screen
@@ -59,27 +59,14 @@ public class CameraActivity extends AbstractCameraActivity
   public static final String EXTRA_ZOOM_STYLE=
     "cwac_cam2_zoom_style";
 
-  /**
-   * Extra name for how much heap space we should try to use
-   * to load the picture for the confirmation screen. Should
-   * be a `float` greater than 0.0f and less than 1.0f.
-   * Defaults to not being used.
-   */
-  public static final String EXTRA_CONFIRMATION_QUALITY=
-    "cwac_cam2_confirmation_quality";
 
-  /**
-   * Extra name for boolean indicating if we should skip the
-   * default logic to rotate the image based on the EXIF orientation
-   * tag. Defaults to false (meaning: do the rotation if needed).
-   */
-  public static final String EXTRA_SKIP_ORIENTATION_NORMALIZATION=
-    "cwac_cam2_skip_orientation_normalization";
 
-  private static final String TAG_CONFIRM=ConfirmationFragment.class.getCanonicalName();
+
+
+
   private static final String[] PERMS={Manifest.permission.CAMERA};
-  private ConfirmationFragment confirmFrag;
-  private boolean needsThumbnail=false;
+
+
 
   @Override
   protected String[] getNeededPermissions() {
@@ -90,29 +77,7 @@ public class CameraActivity extends AbstractCameraActivity
   protected void init() {
     super.init();
 
-    confirmFrag=(ConfirmationFragment)getFragmentManager().findFragmentByTag(TAG_CONFIRM);
 
-    Uri output=getOutputUri();
-
-    needsThumbnail=(output==null);
-
-    if (confirmFrag==null) {
-      confirmFrag=
-        ConfirmationFragment
-          .newInstance(normalizeOrientation());
-      getFragmentManager()
-          .beginTransaction()
-          .add(android.R.id.content, confirmFrag, TAG_CONFIRM)
-          .commit();
-    }
-
-    if (!cameraFrag.isVisible() && !confirmFrag.isVisible()) {
-      getFragmentManager()
-          .beginTransaction()
-          .hide(confirmFrag)
-          .show(cameraFrag)
-          .commit();
-    }
   }
 
   @SuppressWarnings("unused")
@@ -122,11 +87,7 @@ public class CameraActivity extends AbstractCameraActivity
         confirmFrag.setImage(event.getImageContext(),
           getIntent().getExtras().getFloat(EXTRA_CONFIRMATION_QUALITY));
 
-        getFragmentManager()
-          .beginTransaction()
-          .hide(cameraFrag)
-          .show(confirmFrag)
-          .commit();
+        setCurrentFragment(confirmFrag, cameraFrag);
       }
       else {
         completeRequest(event.getImageContext(), true);
@@ -139,11 +100,7 @@ public class CameraActivity extends AbstractCameraActivity
 
   @Override
   public void retakePicture() {
-    getFragmentManager()
-        .beginTransaction()
-        .hide(confirmFrag)
-        .show(cameraFrag)
-        .commit();
+    setCurrentFragment(cameraFrag, confirmFrag);
   }
 
   @Override
@@ -233,12 +190,7 @@ public class CameraActivity extends AbstractCameraActivity
         .commit();
   }
 
-  private boolean normalizeOrientation() {
-    boolean result=!getIntent()
-      .getBooleanExtra(EXTRA_SKIP_ORIENTATION_NORMALIZATION, false);
 
-    return(result);
-  }
 
   /**
    * Class to build an Intent used to start the CameraActivity.
@@ -305,24 +257,6 @@ public class CameraActivity extends AbstractCameraActivity
       return(this);
     }
 
-    /**
-     * Call to set the quality factor for the confirmation screen.
-     * Value should be greater than 0.0f and below 1.0f, and
-     * represents the fraction of the app's heap size that we
-     * should be willing to use for loading the confirmation
-     * image. Defaults to not being used.
-     *
-     * @param quality something in (0.0f, 1.0f] range
-     * @return the builder, for further configuration
-     */
-    public IntentBuilder confirmationQuality(float quality) {
-      if (quality<=0.0f || quality>1.0f) {
-        throw new IllegalArgumentException("Quality outside (0.0f, 1.0f] range!");
-      }
 
-      result.putExtra(EXTRA_CONFIRMATION_QUALITY, quality);
-
-      return(this);
-    }
   }
 }

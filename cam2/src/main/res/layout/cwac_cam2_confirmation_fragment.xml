@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="#df000000"
+    >
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/cwac_cam2_preview_containers"
+        android:layout_centerInParent="true"
+        >
+      <ImageView
+          android:id="@+id/cwac_cam2_thumbnail"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_centerInParent="true"
+          />
+
+        <ImageView
+            android:id="@+id/cwac_cam2_play_thumbnail"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_centerInParent="true"
+            android:src="@android:drawable/ic_media_play"
+            />
+        <TextView
+            android:id="@+id/cwac_cam2_result_timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBottom="@+id/cwac_cam2_thumbnail"
+            android:layout_alignLeft="@+id/cwac_cam2_thumbnail"
+            android:layout_alignStart="@+id/cwac_cam2_thumbnail"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:visibility="gone"/>
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:id="@+id/cwac_cam2_confirmation_buttons"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="@dimen/cwac_cam2_conf_fragment_buttons_bottom_margin">
+        <ImageButton
+            android:id="@+id/cwac_cam2_confirm"
+            android:layout_width="@dimen/cwac_cam2_conf_fragment_buttons_size"
+            android:layout_height="@dimen/cwac_cam2_conf_fragment_buttons_size"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginRight="100dp"
+            android:layout_marginEnd="100dp"
+            android:src="@drawable/cwac_cam2_ic_check_white"
+            />
+        <ImageButton
+            android:id="@+id/cwac_cam2_cancel"
+            android:layout_width="@dimen/cwac_cam2_conf_fragment_buttons_size"
+            android:layout_height="@dimen/cwac_cam2_conf_fragment_buttons_size"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true"
+            android:layout_marginLeft="100dp"
+            android:layout_marginStart="100dp"
+            android:src="@drawable/cwac_cam2_ic_close_white"
+            />
+    </RelativeLayout>
+
+</RelativeLayout>

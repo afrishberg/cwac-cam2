@@ -15,23 +15,18 @@
 package com.commonsware.cwac.cam2.plugin;
 
 import android.annotation.TargetApi;
-import android.content.Context;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.os.Build;
-import android.util.Log;
-import android.view.OrientationEventListener;
-import com.commonsware.cwac.cam2.AbstractCameraActivity;
+
 import com.commonsware.cwac.cam2.CameraConfigurator;
 import com.commonsware.cwac.cam2.CameraPlugin;
 import com.commonsware.cwac.cam2.CameraSession;
 import com.commonsware.cwac.cam2.ClassicCameraConfigurator;
-import com.commonsware.cwac.cam2.FlashMode;
 import com.commonsware.cwac.cam2.SimpleCameraTwoConfigurator;
 import com.commonsware.cwac.cam2.SimpleClassicCameraConfigurator;
-import java.util.List;
 
 /**
  * Plugin for managing flash modes

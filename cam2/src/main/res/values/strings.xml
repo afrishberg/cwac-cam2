@@ -2,4 +2,5 @@
 <resources>
   <string name="cwac_cam2_ok">OK</string>
   <string name="cwac_cam2_retry">Try again</string>
+    <string name="video_take_error">An unknown error occurred while capturing video. Please try again.</string>
 </resources>

@@ -18,13 +18,14 @@ import android.content.Context;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.util.Log;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
 import de.greenrobot.event.EventBus;
 
 /**
@@ -187,6 +188,15 @@ abstract public class CameraEngine {
    */
   public static class VideoTakenEvent extends CrashableEvent {
     private VideoTransaction xact;
+      private boolean scanned = false;
+
+      public boolean isScanned() {
+          return scanned;
+      }
+
+      public void setScanned(boolean scanned) {
+          this.scanned = scanned;
+      }
 
     public VideoTakenEvent(VideoTransaction xact) {
       super();
