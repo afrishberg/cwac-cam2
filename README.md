@@ -13,4 +13,4 @@ notably [CameraKit-Android](https://github.com/gogopop/CameraKit-Android) and
 If you wish to continue exploring this library, [read on](README-original.markdown).
 
 The issue tracker for this repository will be turned off on 1 December 2017.
-The repository itself will be made private on 1 September 2018.
+The repository itself will be made private on 1 March 2019.
